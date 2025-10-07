@@ -39,6 +39,8 @@ export class MimiumProcessor extends AudioWorkletProcessor {
           event.data.buffersize,
           event.data.src
         );
+      case "recompile":
+        this.recompile(event.data.src);
         break;
     }
   }
@@ -46,7 +48,7 @@ export class MimiumProcessor extends AudioWorkletProcessor {
     let config = Config.new();
     config.sample_rate = samplerate;
     config.buffer_size = buffersize;
-    this.context = new Context(config); //io channel is written in context.vonfig
+    this.context = new Context(config); //io channel is written in context.config
     this.context.compile(src);
     // console.log(`input: ${this.context.get_input_channels()}`);
     // console.log(`output: ${this.context.get_output_channels()}`);
@@ -63,6 +65,17 @@ export class MimiumProcessor extends AudioWorkletProcessor {
       type: "compile_finished",
       data: { output_channels: this.context.get_output_channels() || 0 },
     });
+  }
+  public recompile(new_src: string) {
+    if (!this.context) {
+      return this.compile;
+    } else {
+      this.context.recompile(new_src);
+      this.port.postMessage({
+        type: "re-compiled",
+        data: { output_channels: this.context.get_output_channels() || 0 },
+      });
+    }
   }
   public process(
     inputs: Float32Array[][],
