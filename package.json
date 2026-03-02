@@ -1,6 +1,6 @@
 {
   "name": "@mimium/mimium-webaudio",
-  "version": "4.0.0alpha.1",
+  "version": "4.0.0alpha.4",
   "type": "module",
   "description": "webaudio audioworklet module to run mimium code on web browser.",
   "main": "dist/index.js",
@@ -35,7 +35,7 @@
     "vite-plugin-wasm": "^3.4.1"
   },
   "devDependencies": {
-    "mimium-web": "^4.0.0-alpha.1",
+    "mimium-web": "^4.0.0-alpha.4",
     "@types/audioworklet": "^0.0.65",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
