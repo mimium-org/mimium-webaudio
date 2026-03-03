@@ -5,11 +5,11 @@
 // const MimiumProcessorUrl = URL.createObjectURL(processorBlob);
 // import MimiumProcessorUrl from "./audioprocessor.ts?url";
 
+import "./textencoder.mjs";
 import { MimiumProcessorNode } from "./workletnode.ts";
 import type { CompileData } from "./workletnode.ts";
 import textEncoderPolyfillUrl from "./textencoder.mjs?url";
 import wasmurl from "mimium-web/mimium_web_bg.wasm?url";
-import { initSync, Context, Config } from "mimium-web";
 export type { MimiumProcessorNode };
 export type { CompileData } from "./workletnode.ts";
 
@@ -20,6 +20,23 @@ type SetupOptions = {
   libBaseUrl?: string;
   moduleBaseUrl?: string;
 };
+
+const STANDARD_LIB_FILES = [
+  "core.mmm",
+  "delay.mmm",
+  "env.mmm",
+  "filter.mmm",
+  "math.mmm",
+  "noise.mmm",
+  "osc.mmm",
+  "reactive.mmm",
+  "reverb.mmm",
+] as const;
+
+const stdLibVirtualFilesCache = new Map<
+  string,
+  Promise<Array<{ path: string; content: string }>>
+>();
 
 function collectDependencies(source: string): string[] {
   const moduleDeps = [...source.matchAll(/^\s*mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/gm)].map(
@@ -46,6 +63,51 @@ async function requestText(url: string): Promise<string> {
   return response.text();
 }
 
+async function loadStandardLibVirtualFiles(
+  libBaseUrl: string
+): Promise<Array<{ path: string; content: string }>> {
+  const normalizedBase = normalizeBaseUrl(libBaseUrl);
+  const cached = stdLibVirtualFilesCache.get(normalizedBase);
+  if (cached) {
+    return cached;
+  }
+
+  const loading = Promise.all(
+    STANDARD_LIB_FILES.map(async (libFile) => {
+      const url = new URL(libFile, normalizedBase).toString();
+      const content = await requestText(url);
+      return { path: libFile, content };
+    })
+  );
+  stdLibVirtualFilesCache.set(normalizedBase, loading);
+  return loading;
+}
+
+async function preloadMimiumLibCacheInternal(
+  mimium: typeof import("mimium-web"),
+  libBaseUrl: string
+): Promise<void> {
+  const normalizedBase = normalizeBaseUrl(libBaseUrl);
+  const config = mimium.Config.new();
+  config.sample_rate = 44100;
+  config.buffer_size = 128;
+  const context = new mimium.Context(config);
+  await context.init_lib_cache_with_base_url(normalizedBase);
+  await loadStandardLibVirtualFiles(normalizedBase);
+}
+
+export async function preloadMimiumLibCache(
+  options: Pick<SetupOptions, "libBaseUrl"> = {}
+): Promise<void> {
+  const libBaseUrl = normalizeBaseUrl(options.libBaseUrl ?? DEFAULT_GITHUB_LIB_BASE);
+  const mimium = await import("mimium-web");
+  const response = await window.fetch(wasmurl);
+  const wasmBytes = await response.arrayBuffer();
+  const wasmModule = await WebAssembly.compile(wasmBytes);
+  mimium.initSync({ module: wasmModule });
+  await preloadMimiumLibCacheInternal(mimium, libBaseUrl);
+}
+
 async function prepareVirtualFiles(
   src: string,
   moduleBaseUrl: string,
@@ -57,6 +119,20 @@ async function prepareVirtualFiles(
   const visited = new Set<string>();
   const files = new Map<string, string>();
 
+  const stdlibLoaded = await loadStandardLibVirtualFiles(libBase);
+  stdlibLoaded.forEach((file) => files.set(file.path, file.content));
+
+  const getCandidates = (depPath: string): string[] => {
+    if (/^(https?:)?\/\//.test(depPath)) {
+      return [depPath];
+    }
+    const moduleCandidate = new URL(depPath, moduleBase).toString();
+    const libCandidate = new URL(depPath, libBase).toString();
+    return moduleCandidate === libCandidate
+      ? [moduleCandidate]
+      : [moduleCandidate, libCandidate];
+  };
+
   while (queue.length > 0) {
     const depPath = queue.pop();
     if (!depPath || visited.has(depPath)) {
@@ -64,24 +140,39 @@ async function prepareVirtualFiles(
     }
     visited.add(depPath);
 
-    const candidates = [new URL(depPath, moduleBase).toString()];
-    if (/^[A-Za-z_][A-Za-z0-9_]*\.mmm$/.test(depPath)) {
-      candidates.push(new URL(depPath, libBase).toString());
+    if (files.has(depPath)) {
+      const cached = files.get(depPath);
+      if (cached) {
+        collectDependencies(cached).forEach((nested) => {
+          if (!visited.has(nested)) {
+            queue.push(nested);
+          }
+        });
+      }
+      continue;
     }
 
+    const candidates = getCandidates(depPath);
+
     let loaded: string | null = null;
+    const attemptErrors: string[] = [];
     for (const candidate of candidates) {
       try {
         loaded = await requestText(candidate);
         break;
-      } catch {
+      } catch (e) {
+        attemptErrors.push(
+          `${candidate} => ${e instanceof Error ? e.message : String(e)}`
+        );
         continue;
       }
     }
 
     if (!loaded) {
       throw new Error(
-        `Failed to resolve dependency: ${depPath}. Checked moduleBaseUrl and libBaseUrl.`
+        `Failed to resolve dependency: ${depPath}. moduleBaseUrl=${moduleBase} libBaseUrl=${libBase}. Attempts: ${attemptErrors.join(
+          " | "
+        )}`
       );
     }
 
@@ -97,6 +188,7 @@ async function prepareVirtualFiles(
 }
 
 async function prepareCompileDataOnMainThread(
+  mimium: typeof import("mimium-web"),
   wasmBytes: ArrayBuffer,
   src: string,
   samplerate: number,
@@ -107,14 +199,15 @@ async function prepareCompileDataOnMainThread(
   const libBaseUrl = options.libBaseUrl ?? DEFAULT_GITHUB_LIB_BASE;
 
   const wasmModule = await WebAssembly.compile(wasmBytes);
-  initSync({ module: wasmModule });
+  mimium.initSync({ module: wasmModule });
 
-  const config = Config.new();
+  const config = mimium.Config.new();
   config.sample_rate = samplerate;
   config.buffer_size = buffersize;
 
-  const context = new Context(config);
+  const context = new mimium.Context(config);
   context.set_module_base_url(moduleBaseUrl);
+  await preloadMimiumLibCacheInternal(mimium, libBaseUrl);
   await context.init_lib_cache_with_base_url(libBaseUrl);
   await context.compile(src);
 
@@ -123,6 +216,8 @@ async function prepareCompileDataOnMainThread(
     src,
     samplerate,
     buffersize,
+    moduleBaseUrl,
+    libBaseUrl,
     virtualFiles,
   };
 }
@@ -134,9 +229,11 @@ export async function setupMimiumAudioWorklet(
   options: SetupOptions = {}
 ): Promise<MimiumProcessorNode> {
   try {
+    const mimium = await import("mimium-web");
     const response = await window.fetch(wasmurl);
     const wasmBytes = await response.arrayBuffer();
     const compileData = await prepareCompileDataOnMainThread(
+      mimium,
       wasmBytes,
       src,
       ctx.sampleRate,
@@ -157,6 +254,9 @@ export async function setupMimiumAudioWorklet(
     });
     audioNode.init(wasmBytes, compileData);
     await audioNode.waitForCompile();
+    if (audioNode.channelCount <= 0) {
+      throw new Error("compile succeeded but output channel count is zero");
+    }
     return audioNode;
   } catch (e) {
     let err = e as unknown as Error;

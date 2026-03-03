@@ -17,16 +17,23 @@ npm install @mimium/mimium-webaudio
 ## Basic usage
 
 ```ts
-import { setupMimiumAudioWorklet } from "@mimium/mimium-webaudio";
+import {
+	preloadMimiumLibCache,
+	setupMimiumAudioWorklet,
+} from "@mimium/mimium-webaudio";
 import processorUrl from "@mimium/mimium-webaudio/dist/audioprocessor.mjs?url";
 
 const ctx = new AudioContext();
 
 const src = `
 fn dsp(){
-	(0.0, 0.0)
+	0.0
 }
 `;
+
+await preloadMimiumLibCache({
+	libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+});
 
 const node = await setupMimiumAudioWorklet(ctx, src, processorUrl);
 node.connect(ctx.destination);
@@ -37,6 +44,10 @@ node.connect(ctx.destination);
 ## API
 
 ```ts
+preloadMimiumLibCache(options?: {
+	libBaseUrl?: string;
+}): Promise<void>
+
 setupMimiumAudioWorklet(
 	ctx: AudioContext,
 	src: string,
@@ -50,6 +61,8 @@ setupMimiumAudioWorklet(
 
 - `libBaseUrl`: Base URL for standard mimium libraries (default: `https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/`).
 - `moduleBaseUrl`: Base URL for user modules resolved by `mod` / `include` (default: current page base URL).
+
+For code that uses standard library modules (`use osc::sinwave`, etc.), calling `preloadMimiumLibCache` before `setupMimiumAudioWorklet` is recommended.
 
 ## Notes
 

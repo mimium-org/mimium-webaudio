@@ -17,6 +17,13 @@ fn dsp(){
 }
 `;
 
+      const invalidSource = `
+use osc::sinwave
+fn dsp(){
+  unknown_function(440,0)
+}
+`;
+
       window.runMimiumCompileTest = async () => {
         const context = new AudioContext();
 
@@ -32,6 +39,63 @@ fn dsp(){
           node.disconnect();
           await context.close();
           return result;
+        } catch (error) {
+          await context.close();
+          return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+        }
+      };
+
+      window.runMimiumCompileFailTest = async () => {
+        const context = new AudioContext();
+
+        try {
+          await setupMimiumAudioWorklet(context, invalidSource, processorUrl, {
+            libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+            moduleBaseUrl: new URL(".", location.href).toString(),
+          });
+
+          await context.close();
+          return { ok: false, reason: "expected failure but compile succeeded" };
+        } catch (error) {
+          await context.close();
+          return { ok: true, reason: error instanceof Error ? error.message : String(error) };
+        }
+      };
+
+      window.runMimiumPlaybackSmokeTest = async () => {
+        const context = new AudioContext();
+
+        try {
+          const node = await setupMimiumAudioWorklet(context, source, processorUrl, {
+            libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+            moduleBaseUrl: new URL(".", location.href).toString(),
+          });
+
+          let runtimeErrorMessage = "";
+          const onRuntimeError = (ev) => {
+            runtimeErrorMessage = ev?.detail?.message ?? "runtime_error";
+          };
+          node.addEventListener("mimium-runtime-error", onRuntimeError);
+
+          node.connect(context.destination);
+          await context.resume();
+
+          const t0 = context.currentTime;
+          await new Promise((resolve) => window.setTimeout(resolve, 400));
+          const elapsed = context.currentTime - t0;
+
+          node.removeEventListener("mimium-runtime-error", onRuntimeError);
+          node.disconnect();
+          await context.close();
+
+          if (runtimeErrorMessage) {
+            return { ok: false, reason: `runtime error: ${runtimeErrorMessage}` };
+          }
+          if (elapsed <= 0) {
+            return { ok: false, reason: "audio clock did not advance" };
+          }
+
+          return { ok: true, elapsed, outputChannels: node.channelCount };
         } catch (error) {
           await context.close();
           return { ok: false, reason: error instanceof Error ? error.message : String(error) };

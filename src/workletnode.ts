@@ -2,6 +2,8 @@ export type CompileData = {
   samplerate: number;
   buffersize: number;
   src: string;
+  moduleBaseUrl: string;
+  libBaseUrl: string;
   virtualFiles: Array<{ path: string; content: string }>;
 };
 export class MimiumProcessorNode extends AudioWorkletNode {
@@ -64,15 +66,40 @@ export class MimiumProcessorNode extends AudioWorkletNode {
       case "compile_finished":
         this.channelCount = event.data.output_channels;
         console.log(`output channels: ${this.channelCount}`);
+        if ((event.data.output_channels ?? 0) <= 0) {
+          const error = new Error("compile finished with zero output channels");
+          this.rejectCompileReady?.(error);
+          this.dispatchEvent(
+            new CustomEvent("mimium-runtime-error", {
+              detail: { message: error.message },
+            })
+          );
+          this.resolveCompileReady = null;
+          this.rejectCompileReady = null;
+          break;
+        }
         this.resolveCompileReady?.();
         this.resolveCompileReady = null;
         this.rejectCompileReady = null;
         break;
       case "compile_error":
         console.error(`compile error: ${event.data.message}`);
+        this.dispatchEvent(
+          new CustomEvent("mimium-runtime-error", {
+            detail: { message: event.data.message },
+          })
+        );
         this.rejectCompileReady?.(new Error(event.data.message));
         this.resolveCompileReady = null;
         this.rejectCompileReady = null;
+        break;
+      case "runtime_error":
+        console.error(`runtime error: ${event.data.message}`);
+        this.dispatchEvent(
+          new CustomEvent("mimium-runtime-error", {
+            detail: { message: event.data.message },
+          })
+        );
         break;
       case "error_wasm_load":
         this.rejectCompileReady?.(
