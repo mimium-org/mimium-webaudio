@@ -24,13 +24,20 @@ type SetupOptions = {
 const STANDARD_LIB_FILES = [
   "core.mmm",
   "delay.mmm",
+  "drive.mmm",
+  "dynamics.mmm",
+  "drums.mmm",
   "env.mmm",
   "filter.mmm",
   "math.mmm",
+  "mininotation.mmm",
+  "modulation.mmm",
+  "parser.mmm",
   "noise.mmm",
   "osc.mmm",
   "reactive.mmm",
   "reverb.mmm",
+  "pattern.mmm",
 ] as const;
 
 const stdLibVirtualFilesCache = new Map<
