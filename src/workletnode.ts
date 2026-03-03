@@ -2,6 +2,7 @@ export type CompileData = {
   samplerate: number;
   buffersize: number;
   src: string;
+  virtualFiles: Array<{ path: string; content: string }>;
 };
 export class MimiumProcessorNode extends AudioWorkletNode {
   private data: CompileData | null = null;
@@ -46,6 +47,9 @@ export class MimiumProcessorNode extends AudioWorkletNode {
       case "compile_finished":
         this.channelCount = event.data.output_channels;
         console.log(`output channels: ${this.channelCount}`);
+        break;
+      case "compile_error":
+        console.error(`compile error: ${event.data.message}`);
         break;
     }
   }

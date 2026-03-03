@@ -34,20 +34,37 @@ export class MimiumProcessor extends AudioWorkletProcessor {
         break;
       }
       case "compile":
-        this.compile(
+        void this.compile(
           event.data.samplerate,
           event.data.buffersize,
-          event.data.src
+          event.data.src,
+          event.data.virtualFiles
         );
         break;
     }
   }
-  public compile(samplerate: number, buffersize: number, src: string) {
+  public async compile(
+    samplerate: number,
+    buffersize: number,
+    src: string,
+    virtualFiles: Array<{ path: string; content: string }> = []
+  ) {
     let config = Config.new();
     config.sample_rate = samplerate;
     config.buffer_size = buffersize;
     this.context = new Context(config); //io channel is written in context.vonfig
-    this.context.compile(src);
+    try {
+      virtualFiles.forEach((file) => {
+        this.context?.put_virtual_file_cache(file.path, file.content);
+      });
+      this.context.compile_direct(src);
+    } catch (e) {
+      this.port.postMessage({
+        type: "compile_error",
+        data: { message: e instanceof Error ? e.message : String(e) },
+      });
+      return;
+    }
     // console.log(`input: ${this.context.get_input_channels()}`);
     // console.log(`output: ${this.context.get_output_channels()}`);
 
