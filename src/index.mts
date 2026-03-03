@@ -26,7 +26,6 @@ const STANDARD_LIB_FILES = [
   "delay.mmm",
   "drive.mmm",
   "dynamics.mmm",
-  "drums.mmm",
   "env.mmm",
   "filter.mmm",
   "math.mmm",
