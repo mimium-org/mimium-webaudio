@@ -55,3 +55,12 @@ setupMimiumAudioWorklet(
 
 - Compilation and library/module fetch are done on the main thread.
 - AudioWorklet uses preloaded virtual file cache and does not fetch files directly.
+
+## Testing (Playwright)
+
+```bash
+npx playwright install chromium
+npx playwright test tests/compile.spec.ts
+```
+
+This test opens a browser page, creates `AudioContext` + `AudioWorklet`, compiles a mimium source, and verifies compile completion.

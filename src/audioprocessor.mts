@@ -1,5 +1,4 @@
 import "./textencoder.mjs";
-
 import { initSync, Context, Config } from "mimium-web";
 
 export class MimiumProcessor extends AudioWorkletProcessor {
@@ -22,7 +21,7 @@ export class MimiumProcessor extends AudioWorkletProcessor {
         const wasmBinary = event.data as ArrayBuffer; //this is invalid conversion for workaround.
         WebAssembly.compile(wasmBinary)
           .then((wasm) => {
-            let _res = initSync({ module: wasm });
+            initSync({ module: wasm });
             console.log("wasm module loaded,sending message");
             this.port.postMessage({ type: "wasm-module-loaded" });
           })

@@ -7,6 +7,7 @@
 
 import { MimiumProcessorNode } from "./workletnode.ts";
 import type { CompileData } from "./workletnode.ts";
+import textEncoderPolyfillUrl from "./textencoder.mjs?url";
 import wasmurl from "mimium-web/mimium_web_bg.wasm?url";
 import { initSync, Context, Config } from "mimium-web";
 export type { MimiumProcessorNode };
@@ -24,10 +25,13 @@ function collectDependencies(source: string): string[] {
   const moduleDeps = [...source.matchAll(/^\s*mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/gm)].map(
     (match) => `${match[1]}.mmm`
   );
+  const useDeps = [
+    ...source.matchAll(/^\s*use\s+([A-Za-z_][A-Za-z0-9_]*)(?:::[^\s]+)?\s*$/gm),
+  ].map((match) => `${match[1]}.mmm`);
   const includeDeps = [...source.matchAll(/^\s*include\(\s*"([^"]+)"\s*\)\s*$/gm)].map(
     (match) => match[1]
   );
-  return [...new Set([...moduleDeps, ...includeDeps])];
+  return [...new Set([...moduleDeps, ...useDeps, ...includeDeps])];
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -140,6 +144,7 @@ export async function setupMimiumAudioWorklet(
       options
     );
     try {
+      await ctx.audioWorklet.addModule(textEncoderPolyfillUrl);
       await ctx.audioWorklet.addModule(MimiumProcessorUrl);
     } catch (e) {
       let err = e as unknown as Error;
@@ -151,6 +156,7 @@ export async function setupMimiumAudioWorklet(
       channelCountMode: "clamped-max",
     });
     audioNode.init(wasmBytes, compileData);
+    await audioNode.waitForCompile();
     return audioNode;
   } catch (e) {
     let err = e as unknown as Error;

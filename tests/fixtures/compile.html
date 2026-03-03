@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mimium compile test</title>
+  </head>
+  <body>
+    <script type="module">
+      import { setupMimiumAudioWorklet } from "/src/index.mts";
+      import processorUrl from "/src/audioprocessor.mts?url";
+
+      const source = `
+use osc::sinwave
+fn dsp(){
+  sinwave(440,0)
+}
+`;
+
+      window.runMimiumCompileTest = async () => {
+        const context = new AudioContext();
+
+        try {
+          const node = await setupMimiumAudioWorklet(context, source, processorUrl, {
+            libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+            moduleBaseUrl: new URL(".", location.href).toString(),
+          });
+
+          node.connect(context.destination);
+          const result = { ok: true, outputChannels: node.channelCount };
+
+          node.disconnect();
+          await context.close();
+          return result;
+        } catch (error) {
+          await context.close();
+          return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+        }
+      };
+    </script>
+  </body>
+</html>
