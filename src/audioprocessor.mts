@@ -195,8 +195,9 @@ export class MimiumProcessor extends AudioWorkletProcessor {
         return true;
       }
       output.forEach((output, och) => {
+        const sourceChannel = ochannels <= 1 ? 0 : Math.min(och, ochannels - 1);
         for (let i = 0; i < output.length; i++) {
-          output[i] = this.interleaved_output[ochannels * i + och];
+          output[i] = this.interleaved_output[ochannels * i + sourceChannel] ?? 0;
         }
       });
     }

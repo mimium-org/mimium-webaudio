@@ -282,7 +282,11 @@ export async function setupMimiumAudioWorklet(
       );
     }
     let audioNode = new MimiumProcessorNode(ctx, "MimiumProcessor", {
-      channelCountMode: "clamped-max",
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+      channelCount: 2,
+      channelCountMode: "explicit",
+      channelInterpretation: "discrete",
     });
     audioNode.init(wasmBytes, compileData);
     await audioNode.waitForCompile();
