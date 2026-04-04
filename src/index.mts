@@ -14,7 +14,7 @@ export type { MimiumProcessorNode };
 export type { CompileData } from "./workletnode.ts";
 
 const DEFAULT_GITHUB_LIB_BASE =
-  "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/";
+  "https://raw.githubusercontent.com/mimium-org/mimium-rs/main/lib/";
 
 type SetupOptions = {
   libBaseUrl?: string;
@@ -22,6 +22,7 @@ type SetupOptions = {
 };
 
 const STANDARD_LIB_FILES = [
+  "composition.mmm",
   "core.mmm",
   "delay.mmm",
   "drive.mmm",
@@ -31,12 +32,14 @@ const STANDARD_LIB_FILES = [
   "math.mmm",
   "mininotation.mmm",
   "modulation.mmm",
-  "parser.mmm",
   "noise.mmm",
   "osc.mmm",
+  "parser.mmm",
+  "pattern.mmm",
   "reactive.mmm",
   "reverb.mmm",
-  "pattern.mmm",
+  "sequencer.mmm",
+  "space.mmm",
 ] as const;
 
 const stdLibVirtualFilesCache = new Map<
@@ -238,7 +241,6 @@ async function prepareCompileDataOnMainThread(
       context.put_virtual_file_cache(alias, file.content);
     });
   });
-  await context.compile(src);
 
   const virtualFiles = await prepareVirtualFiles(src, moduleBaseUrl, libBaseUrl);
   return {

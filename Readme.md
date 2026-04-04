@@ -59,7 +59,7 @@ setupMimiumAudioWorklet(
 ): Promise<MimiumProcessorNode>
 ```
 
-- `libBaseUrl`: Base URL for standard mimium libraries (default: `https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/`).
+- `libBaseUrl`: Base URL for standard mimium libraries (default: `https://raw.githubusercontent.com/mimium-org/mimium-rs/main/lib/`).
 - `moduleBaseUrl`: Base URL for user modules resolved by `mod` / `include` (default: current page base URL).
 
 For code that uses standard library modules (`use osc::sinwave`, etc.), calling `preloadMimiumLibCache` before `setupMimiumAudioWorklet` is recommended.

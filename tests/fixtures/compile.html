@@ -9,6 +9,7 @@
     <script type="module">
       import { setupMimiumAudioWorklet } from "/src/index.mts";
       import processorUrl from "/src/audioprocessor.mts?url";
+      const libBaseUrl = "https://raw.githubusercontent.com/mimium-org/mimium-rs/main/lib/";
 
       const source = `
 use osc::sinwave
@@ -25,6 +26,39 @@ fn dsp(){
 }
 `;
 
+      const coreUseSource = `
+use core::mix
+use osc::sinwave
+fn dsp(){
+  mix(0.5, sinwave(440,0), 0.0)
+}
+`;
+
+      const coreWildcardSource = `
+use core::*
+use osc::sinwave
+fn dsp(){
+  mix(0.5, sinwave(440,0), 0.0)
+}
+`;
+
+      const coreMacroSource = `
+use core::stereo_synth
+use osc::sinwave
+fn dsp(){
+  sinwave(440,0)
+}
+`;
+
+      const noiseUseSource = `
+use noise::noise
+use drive::sah_auto
+use osc::sinwave
+fn dsp(){
+  sinwave(220,0) * 0.1
+}
+`;
+
       const invalidSource = `
 use osc::sinwave
 fn dsp(){
@@ -37,7 +71,7 @@ fn dsp(){
 
         try {
           const node = await setupMimiumAudioWorklet(context, source, processorUrl, {
-            libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+            libBaseUrl,
             moduleBaseUrl: new URL(".", location.href).toString(),
           });
 
@@ -53,12 +87,54 @@ fn dsp(){
         }
       };
 
+      const runMimiumCompileOnly = async (src) => {
+        const context = new AudioContext();
+
+        try {
+          const node = await setupMimiumAudioWorklet(context, src, processorUrl, {
+            libBaseUrl,
+            moduleBaseUrl: new URL(".", location.href).toString(),
+          });
+
+          node.connect(context.destination);
+          const result = { ok: true, outputChannels: node.channelCount };
+
+          node.disconnect();
+          await context.close();
+          return result;
+        } catch (error) {
+          await context.close();
+          return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+        }
+      };
+
+      window.runMimiumCoreUseCompileTest = async () => runMimiumCompileOnly(coreUseSource);
+      window.runMimiumCoreWildcardCompileTest = async () => runMimiumCompileOnly(coreWildcardSource);
+      window.runMimiumCoreMacroCompileTest = async () => runMimiumCompileOnly(coreMacroSource);
+      window.runMimiumNoiseUseCompileTest = async () => runMimiumCompileOnly(noiseUseSource);
+
+      window.runMimiumCoreUseCompileDefaultOptionsTest = async () => {
+        const context = new AudioContext();
+
+        try {
+          const node = await setupMimiumAudioWorklet(context, coreUseSource, processorUrl);
+          node.connect(context.destination);
+          const result = { ok: true, outputChannels: node.channelCount };
+          node.disconnect();
+          await context.close();
+          return result;
+        } catch (error) {
+          await context.close();
+          return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+        }
+      };
+
       window.runMimiumCompileFailTest = async () => {
         const context = new AudioContext();
 
         try {
           await setupMimiumAudioWorklet(context, invalidSource, processorUrl, {
-            libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+            libBaseUrl,
             moduleBaseUrl: new URL(".", location.href).toString(),
           });
 
@@ -75,7 +151,7 @@ fn dsp(){
 
         try {
           const node = await setupMimiumAudioWorklet(context, source, processorUrl, {
-            libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+            libBaseUrl,
             moduleBaseUrl: new URL(".", location.href).toString(),
           });
 
@@ -115,7 +191,7 @@ fn dsp(){
 
         try {
           const node = await setupMimiumAudioWorklet(context, multiUseSource, processorUrl, {
-            libBaseUrl: "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+            libBaseUrl,
             moduleBaseUrl: new URL(".", location.href).toString(),
           });
 

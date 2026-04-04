@@ -73,7 +73,7 @@ export class MimiumProcessor extends AudioWorkletProcessor {
     buffersize: number,
     src: string,
     moduleBaseUrl: string = "",
-    libBaseUrl: string = "https://raw.githubusercontent.com/mimium-org/mimium-rs/dev/lib/",
+    libBaseUrl: string = "https://raw.githubusercontent.com/mimium-org/mimium-rs/main/lib/",
     virtualFiles: Array<{ path: string; content: string }> = []
   ) {
     this.isCompiled = false;
@@ -117,7 +117,7 @@ export class MimiumProcessor extends AudioWorkletProcessor {
           nextContext.put_virtual_file_cache(alias, file.content);
         });
       });
-      nextContext.compile_direct(src);
+      await nextContext.compile(src);
 
       const outputChannels = nextContext.get_output_channels() || 0;
       if (outputChannels <= 0) {
