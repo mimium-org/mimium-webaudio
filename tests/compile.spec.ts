@@ -77,3 +77,34 @@ test("mimium use playback smoke", async ({ page }) => {
   expect(result.outputChannels).toBeGreaterThan(0);
   expect((result.elapsed ?? 0) > 0).toBeTruthy();
 });
+
+test("mimium multi-use playback smoke", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/tests/fixtures/compile.html");
+
+  const result = await page.evaluate(async () => {
+    type SmokeResult = {
+      ok: boolean;
+      reason?: string;
+      elapsed?: number;
+      outputChannels?: number;
+    };
+
+    const runner = (
+      window as unknown as { runMimiumMultiUsePlaybackSmokeTest: () => Promise<SmokeResult> }
+    ).runMimiumMultiUsePlaybackSmokeTest;
+
+    return Promise.race([
+      runner(),
+      new Promise<SmokeResult>((resolve) => {
+        window.setTimeout(() => {
+          resolve({ ok: false, reason: "runner timeout" });
+        }, 60_000);
+      }),
+    ]);
+  });
+
+  expect(result.ok, result.reason ?? "multi-use playback smoke failed").toBeTruthy();
+  expect(result.outputChannels).toBeGreaterThan(0);
+  expect((result.elapsed ?? 0) > 0).toBeTruthy();
+});

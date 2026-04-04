@@ -57,8 +57,25 @@ function collectDependencies(source: string): string[] {
   return [...new Set([...moduleDeps, ...useDeps, ...includeDeps])];
 }
 
+function normalizeVirtualPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\//, "");
+}
+
+function expandVirtualPathAliases(path: string): string[] {
+  const normalized = normalizeVirtualPath(path);
+  const strippedLib = normalized.replace(/^lib\//, "");
+  return [...new Set([path, strippedLib, `./${strippedLib}`, `lib/${strippedLib}`, `/lib/${strippedLib}`])];
+}
+
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
 
 async function requestText(url: string): Promise<string> {
@@ -215,6 +232,12 @@ async function prepareCompileDataOnMainThread(
   context.set_module_base_url(moduleBaseUrl);
   await preloadMimiumLibCacheInternal(mimium, libBaseUrl);
   await context.init_lib_cache_with_base_url(libBaseUrl);
+  const stdLibVirtualFiles = await loadStandardLibVirtualFiles(libBaseUrl);
+  stdLibVirtualFiles.forEach((file) => {
+    expandVirtualPathAliases(file.path).forEach((alias) => {
+      context.put_virtual_file_cache(alias, file.content);
+    });
+  });
   await context.compile(src);
 
   const virtualFiles = await prepareVirtualFiles(src, moduleBaseUrl, libBaseUrl);
@@ -250,9 +273,10 @@ export async function setupMimiumAudioWorklet(
       await ctx.audioWorklet.addModule(textEncoderPolyfillUrl);
       await ctx.audioWorklet.addModule(MimiumProcessorUrl);
     } catch (e) {
-      let err = e as unknown as Error;
       throw new Error(
-        `Failed to load audio analyzer worklet at url: ${MimiumProcessorUrl}. Further info: ${err.message}`
+        `Failed to load audio analyzer worklet at url: ${MimiumProcessorUrl}. Further info: ${errorToMessage(
+          e
+        )}`
       );
     }
     let audioNode = new MimiumProcessorNode(ctx, "MimiumProcessor", {
@@ -265,9 +289,8 @@ export async function setupMimiumAudioWorklet(
     }
     return audioNode;
   } catch (e) {
-    let err = e as unknown as Error;
     throw new Error(
-      `Failed to load audio analyzer WASM module. Further info: ${err.message}`
+      `Failed to load audio analyzer WASM module. Further info: ${errorToMessage(e)}`
     );
   }
 }
