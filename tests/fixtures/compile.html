@@ -7,7 +7,7 @@
   </head>
   <body>
     <script type="module">
-      import { setupMimiumAudioWorklet } from "/src/index.mts";
+      import { setupMimiumAudioWorklet, transpileMimiumToRust } from "/src/index.mts";
       import processorUrl from "/src/audioprocessor.mts?url";
       const libBaseUrl = "https://raw.githubusercontent.com/mimium-org/mimium-rs/main/lib/";
 
@@ -143,6 +143,18 @@ fn dsp(){
         } catch (error) {
           await context.close();
           return { ok: true, reason: error instanceof Error ? error.message : String(error) };
+        }
+      };
+
+      window.runMimiumEmitRustTest = async () => {
+        try {
+          const rust = await transpileMimiumToRust(source, {
+            libBaseUrl,
+            moduleBaseUrl: new URL(".", location.href).toString(),
+          });
+          return { ok: typeof rust === "string" && rust.length > 0, rust };
+        } catch (error) {
+          return { ok: false, reason: error instanceof Error ? error.message : String(error) };
         }
       };
 

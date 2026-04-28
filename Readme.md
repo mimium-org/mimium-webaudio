@@ -57,10 +57,24 @@ setupMimiumAudioWorklet(
 		moduleBaseUrl?: string;
 	}
 ): Promise<MimiumProcessorNode>
+
+transpileMimiumToRust(
+	src: string,
+	options?: {
+		libBaseUrl?: string;
+		moduleBaseUrl?: string;
+		samplerate?: number;
+		buffersize?: number;
+		direct?: boolean;
+	}
+): Promise<string>
 ```
 
 - `libBaseUrl`: Base URL for standard mimium libraries (default: `https://raw.githubusercontent.com/mimium-org/mimium-rs/main/lib/`).
 - `moduleBaseUrl`: Base URL for user modules resolved by `mod` / `include` (default: current page base URL).
+- `samplerate`: Sample rate used for transpile context (default: `44100`).
+- `buffersize`: Buffer size used for transpile context (default: `128`).
+- `direct`: Use synchronous transpile (`emit_rust_direct`) path (default: `false`).
 
 For code that uses standard library modules (`use osc::sinwave`, etc.), calling `preloadMimiumLibCache` before `setupMimiumAudioWorklet` is recommended.
 

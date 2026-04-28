@@ -233,3 +233,28 @@ test("mimium noise import compile smoke", async ({ page }) => {
   expect(result.ok, result.reason ?? "noise import compile failed").toBeTruthy();
   expect(result.outputChannels).toBeGreaterThan(0);
 });
+
+test("mimium transpile to rust smoke", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/tests/fixtures/compile.html");
+
+  const result = await page.evaluate(async () => {
+    type EmitRustResult = { ok: boolean; reason?: string; rust?: string };
+
+    const runner = (
+      window as unknown as { runMimiumEmitRustTest: () => Promise<EmitRustResult> }
+    ).runMimiumEmitRustTest;
+
+    return Promise.race([
+      runner(),
+      new Promise<EmitRustResult>((resolve) => {
+        window.setTimeout(() => {
+          resolve({ ok: false, reason: "runner timeout" });
+        }, 60_000);
+      }),
+    ]);
+  });
+
+  expect(result.ok, result.reason ?? "emit rust failed").toBeTruthy();
+  expect((result.rust ?? "").length).toBeGreaterThan(0);
+});

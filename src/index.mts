@@ -21,6 +21,12 @@ type SetupOptions = {
   moduleBaseUrl?: string;
 };
 
+export type TranspileToRustOptions = SetupOptions & {
+  samplerate?: number;
+  buffersize?: number;
+  direct?: boolean;
+};
+
 const STANDARD_LIB_FILES = [
   "composition.mmm",
   "core.mmm",
@@ -68,6 +74,13 @@ function expandVirtualPathAliases(path: string): string[] {
   const normalized = normalizeVirtualPath(path);
   const strippedLib = normalized.replace(/^lib\//, "");
   return [...new Set([path, strippedLib, `./${strippedLib}`, `lib/${strippedLib}`, `/lib/${strippedLib}`])];
+}
+
+function getVirtualPathAliases(path: string): string[] {
+  if (/^(https?:)?\/\//.test(path)) {
+    return [path];
+  }
+  return expandVirtualPathAliases(path);
 }
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -132,6 +145,52 @@ export async function preloadMimiumLibCache(
   const wasmModule = await WebAssembly.compile(wasmBytes);
   mimium.initSync({ module: wasmModule });
   await preloadMimiumLibCacheInternal(mimium, libBaseUrl);
+}
+
+export async function transpileMimiumToRust(
+  src: string,
+  options: TranspileToRustOptions = {}
+): Promise<string> {
+  try {
+    const moduleBaseUrl =
+      options.moduleBaseUrl ?? new URL(".", window.location.href).toString();
+    const libBaseUrl = normalizeBaseUrl(
+      options.libBaseUrl ?? DEFAULT_GITHUB_LIB_BASE
+    );
+    const samplerate = options.samplerate ?? 44100;
+    const buffersize = options.buffersize ?? 128;
+
+    const mimium = await import("mimium-web");
+    const response = await window.fetch(wasmurl);
+    const wasmBytes = await response.arrayBuffer();
+    const wasmModule = await WebAssembly.compile(wasmBytes);
+    mimium.initSync({ module: wasmModule });
+
+    const config = mimium.Config.new();
+    config.sample_rate = samplerate;
+    config.buffer_size = buffersize;
+
+    const context = new mimium.Context(config);
+    context.set_module_base_url(moduleBaseUrl);
+    await preloadMimiumLibCacheInternal(mimium, libBaseUrl);
+    await context.init_lib_cache_with_base_url(libBaseUrl);
+
+    const virtualFiles = await prepareVirtualFiles(src, moduleBaseUrl, libBaseUrl);
+    virtualFiles.forEach((file) => {
+      getVirtualPathAliases(file.path).forEach((alias) => {
+        context.put_virtual_file_cache(alias, file.content);
+      });
+    });
+
+    if (options.direct) {
+      return context.emit_rust_direct(src);
+    }
+    return await context.emit_rust(src);
+  } catch (e) {
+    throw new Error(
+      `Failed to transpile mimium source to Rust. Further info: ${errorToMessage(e)}`
+    );
+  }
 }
 
 async function prepareVirtualFiles(
@@ -237,7 +296,7 @@ async function prepareCompileDataOnMainThread(
   await context.init_lib_cache_with_base_url(libBaseUrl);
   const stdLibVirtualFiles = await loadStandardLibVirtualFiles(libBaseUrl);
   stdLibVirtualFiles.forEach((file) => {
-    expandVirtualPathAliases(file.path).forEach((alias) => {
+    getVirtualPathAliases(file.path).forEach((alias) => {
       context.put_virtual_file_cache(alias, file.content);
     });
   });
