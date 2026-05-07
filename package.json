@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.53.2",
-    "mimium-web": "^4.1.0",
+    "mimium-web": "^4.1.1",
     "@types/audioworklet": "^0.0.65",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
